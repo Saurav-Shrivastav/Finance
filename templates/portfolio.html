@@ -1,0 +1,40 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+    Portfolio
+{% endblock %}
+
+{% block main %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Name</th>
+                <th>Shares</th>
+                <th>Price</th>
+                <th>TOTAL</th>
+            </tr>
+        </thead>
+        <tfoot>
+            <tr>
+                <td colspan="4"></td>
+                <td>$10,000.00</td>
+            </tr>
+        </tfoot>
+        <tbody>
+            {% for purchase in purchases %}
+            <tr>
+                <td>{{ purchase.symbol }}</td>
+                <td>{{ purchase.name }}</td>
+                <td>{{ purchase.shares}}</td>
+                <td>{{ purchase.price }}</td>
+                <td>{{ purchase.total }}</td>
+            </tr>
+            {% endfor %}
+            <tr>
+                <td colspan="4">CASH</td>
+                <td>{{ cash|usd }}</td>
+            </tr>
+        </tbody>
+    </table>
+{% endblock %}
