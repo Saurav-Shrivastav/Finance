@@ -51,7 +51,60 @@ def index():
 @login_required
 def buy():
     """Buy shares of stock"""
-    return apology("TODO")
+
+    if request.method == "POST":
+        
+        if not request.form.get('symbol'):
+            return apology("must provide Symbol", 403)
+
+        if not request.form.get('shares'):
+            return apology("must provide a positive number of shares", 403)
+            
+        if int(request.form.get('shares')) <= 0:
+            return apology("must provide a positive number of shares", 403)
+
+        quoted_data = lookup(request.form.get("symbol"))
+        if quoted_data is None:
+            return apology("Invalid symbol", 403)
+
+        user = db.execute(
+            "SELECT * FROM users WHERE id = :id",
+            id=session["user_id"]
+        )
+        if quoted_data["price"] * int(request.form.get("shares")) > user[0]["cash"]:
+            return apology("You can't afford the purchase", 403)
+
+        # Add a purchase
+        purchase = db.execute(
+            """
+                INSERT INTO purchases (user_id, symbol, name, shares, price, total)
+                VALUES
+                (:user_id, :symbol, :name, :shares, :price, :total);
+            """,
+            user_id=session["user_id"],
+            symbol=quoted_data["symbol"],
+            name=quoted_data["name"],
+            shares=int(request.form.get("shares")),
+            price=quoted_data["price"],
+            total=(quoted_data["price"] * int(request.form.get("shares")))
+        )
+        if purchase is None:
+            return apology("Purchase could not be completed", 403)
+
+        # Update cash in user
+        user = db.execute(
+            """
+            UPDATE users
+            SET cash=:cash
+            WHERE id=:user_id;
+            """,
+            cash=(user[0]["cash"]-(quoted_data["price"])*int(request.form.get("shares"))),
+            user_id=session["user_id"]
+        )
+
+        return redirect("/")
+
+    return render_template("buy.html")
 
 
 @app.route("/history")
