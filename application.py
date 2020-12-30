@@ -44,7 +44,20 @@ if not os.environ.get("API_KEY"):
 @login_required
 def index():
     """Show portfolio of stocks"""
-    return apology("TODO")
+    user = db.execute(
+        "SELECT * FROM users WHERE id = :id",
+        id=session["user_id"]
+    )
+    purchases = db.execute(
+        "SELECT * FROM purchases WHERE user_id = :id",
+        id=session["user_id"]
+    )
+    print(purchases)
+    return render_template(
+        "portfolio.html",
+        cash=user[0]["cash"],
+        purchases=purchases
+    )
 
 
 @app.route("/buy", methods=["GET", "POST"])
@@ -102,6 +115,7 @@ def buy():
             user_id=session["user_id"]
         )
 
+        flash("Bought!")
         return redirect("/")
 
     return render_template("buy.html")
