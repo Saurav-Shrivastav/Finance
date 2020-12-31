@@ -48,15 +48,22 @@ def index():
         "SELECT * FROM users WHERE id = :id",
         id=session["user_id"]
     )
-    purchases = db.execute(
-        "SELECT * FROM purchases WHERE user_id = :id",
+    stocks = db.execute(
+        "SELECT * FROM stocks WHERE user_id = :id",
         id=session["user_id"]
     )
-    print(purchases)
+    curr_prices = []
+    total_prices = []
+    for stock in stocks:
+        quoted_data = lookup(stock["symbol"])
+        curr_prices.append(quoted_data["price"])
+        total_prices.append(quoted_data["price"] * stock["shares"])
+    total_stocks_cash = sum(total_prices) + user[0]["cash"]
     return render_template(
         "portfolio.html",
         cash=user[0]["cash"],
-        purchases=purchases
+        stocks_prices=zip(stocks, curr_prices, total_prices),
+        total_stocks_cash=total_stocks_cash,
     )
 
 
@@ -87,22 +94,52 @@ def buy():
         if quoted_data["price"] * int(request.form.get("shares")) > user[0]["cash"]:
             return apology("You can't afford the purchase", 403)
 
+        stock_ea = db.execute(
+            "SELECT * FROM stocks WHERE symbol = :symbol AND user_id = :id",
+            symbol=quoted_data["symbol"],
+            id=session["user_id"]
+        )
+
         # Add a purchase
         purchase = db.execute(
-            """
-                INSERT INTO purchases (user_id, symbol, name, shares, price, total)
-                VALUES
-                (:user_id, :symbol, :name, :shares, :price, :total);
-            """,
-            user_id=session["user_id"],
-            symbol=quoted_data["symbol"],
-            name=quoted_data["name"],
-            shares=int(request.form.get("shares")),
-            price=quoted_data["price"],
-            total=(quoted_data["price"] * int(request.form.get("shares")))
-        )
+                """
+                    INSERT INTO purchases (user_id, symbol, name, shares, price, total)
+                    VALUES
+                    (:user_id, :symbol, :name, :shares, :price, :total);
+                """,
+                user_id=session["user_id"],
+                symbol=quoted_data["symbol"],
+                name=quoted_data["name"],
+                shares=int(request.form.get("shares")),
+                price=quoted_data["price"],
+                total=(quoted_data["price"] * int(request.form.get("shares")))
+            )
         if purchase is None:
-            return apology("Purchase could not be completed", 403)
+                return apology("Purchase could not be completed", 403)
+
+        if len(stock_ea) == 0:
+            stock = db.execute(
+                """
+                INSERT INTO stocks (user_id, symbol, name, shares)
+                VALUES
+                (:user_id, :symbol, :name, :shares);
+                """,
+                user_id=session["user_id"],
+                symbol=quoted_data["symbol"],
+                name=quoted_data["name"],
+                shares=int(request.form.get("shares")),
+            )
+        else: 
+            stock = db.execute(
+                """
+                UPDATE stocks
+                SET shares = :shares
+                where user_id = :user_id AND symbol = :symbol;
+                """,
+                shares=stock_ea[0]["shares"] + int(request.form.get("shares")),
+                user_id=session["user_id"],
+                symbol=quoted_data["symbol"],
+            )
 
         # Update cash in user
         user = db.execute(
@@ -183,6 +220,8 @@ def quote():
 
     if request.method == "POST":
         quoted_data = lookup(request.form.get("symbol"))
+        if quoted_data is None:
+            return apology("Invalid symbol", 403)
         return render_template("quoted.html", quote=quoted_data)
 
     return render_template("quote.html")
@@ -250,7 +289,104 @@ def register():
 @login_required
 def sell():
     """Sell shares of stock"""
-    return apology("TODO")
+    stocks = db.execute(
+        "SELECT * FROM stocks WHERE user_id = :id",
+        id=session["user_id"]
+    )
+    
+    if request.method == "POST":
+
+        # Ensure symbol was submitted
+        if not request.form.get("symbol"):
+            return apology("must provide a symbol", 403)
+
+        # Ensure shares was submitted
+        elif not request.form.get("shares"):
+            return apology("must provide the number of shares", 403)
+
+        if int(request.form.get('shares')) <= 0:
+            return apology("must provide a positive number of shares", 403)
+
+        quoted_data = lookup(request.form.get("symbol"))
+        if quoted_data is None:
+            return apology("Invalid symbol", 403)
+
+        stock = db.execute(
+            """
+            SELECT * 
+            FROM stocks 
+            WHERE user_id = :id AND symbol = :symbol
+            """,
+            id=session["user_id"],
+            symbol=request.form.get('symbol')
+        )
+
+        if stock is None:
+            return apology("You don't own any shares of the given stock", 403)
+
+        if stock[0]["shares"] < int(request.form.get("shares")):
+            return apology("You don't own enough shares", 403)
+
+        # Add a purchase
+        purchase = db.execute(
+                """
+                    INSERT INTO purchases (user_id, symbol, name, shares, price, total)
+                    VALUES
+                    (:user_id, :symbol, :name, :shares, :price, :total);
+                """,
+                user_id=session["user_id"],
+                symbol=quoted_data["symbol"],
+                name=quoted_data["name"],
+                shares=-(int(request.form.get("shares"))),
+                price=quoted_data["price"],
+                total=(quoted_data["price"] * int(request.form.get("shares")))
+            )
+        
+        if stock[0]["shares"] == int(request.form.get("shares")):
+            stock = db.execute(
+                """
+                DELETE 
+                FROM stocks 
+                WHERE user_id = :id AND symbol = :symbol;
+                """,
+                id=session["user_id"],
+                symbol=request.form.get("symbol")
+            )
+        else:
+            updated_stock = db.execute(
+                """
+                UPDATE stocks
+                SET shares = :shares
+                WHERE user_id = :id AND symbol = :symbol;
+                """,
+                shares=(stock[0]["shares"] - int(request.form.get("shares"))),
+                id=session["user_id"],
+                symbol=request.form.get("symbol")
+            )
+
+        # Update cash in user
+        user = db.execute(
+            "SELECT * FROM users WHERE id = :id",
+            id=session["user_id"]
+        )
+        user = db.execute(
+            """
+            UPDATE users
+            SET cash=:cash
+            WHERE id=:user_id;
+            """,
+            cash=(user[0]["cash"]+(quoted_data["price"])*int(request.form.get("shares"))),
+            user_id=session["user_id"]
+        )
+
+        flash("Sold!")
+        return redirect("/")
+
+
+    return render_template(
+        "sell.html",
+        stocks=stocks
+    )
 
 
 def errorhandler(e):

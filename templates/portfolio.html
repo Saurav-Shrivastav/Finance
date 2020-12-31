@@ -18,17 +18,17 @@
         <tfoot>
             <tr>
                 <td colspan="4"></td>
-                <td>$10,000.00</td>
+                <td>{{ total_stocks_cash|usd }}</td>
             </tr>
         </tfoot>
         <tbody>
-            {% for purchase in purchases %}
+            {% for stock, price, total in stocks_prices %}
             <tr>
-                <td>{{ purchase.symbol }}</td>
-                <td>{{ purchase.name }}</td>
-                <td>{{ purchase.shares}}</td>
-                <td>{{ purchase.price }}</td>
-                <td>{{ purchase.total }}</td>
+                <td>{{ stock.symbol }}</td>
+                <td>{{ stock.name }}</td>
+                <td>{{ stock.shares}}</td>
+                <td>{{ price|usd }}</td>
+                <td>{{ total|usd }}</td>
             </tr>
             {% endfor %}
             <tr>
