@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from cs50 import SQL
 from flask import Flask, flash, jsonify, redirect, render_template, request, session
@@ -103,16 +104,17 @@ def buy():
         # Add a purchase
         purchase = db.execute(
                 """
-                    INSERT INTO purchases (user_id, symbol, name, shares, price, total)
+                    INSERT INTO purchases (user_id, symbol, name, shares, price, total, date)
                     VALUES
-                    (:user_id, :symbol, :name, :shares, :price, :total);
+                    (:user_id, :symbol, :name, :shares, :price, :total, :date);
                 """,
                 user_id=session["user_id"],
                 symbol=quoted_data["symbol"],
                 name=quoted_data["name"],
                 shares=int(request.form.get("shares")),
                 price=quoted_data["price"],
-                total=(quoted_data["price"] * int(request.form.get("shares")))
+                total=(quoted_data["price"] * int(request.form.get("shares"))),
+                date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             )
         if purchase is None:
                 return apology("Purchase could not be completed", 403)
@@ -162,7 +164,17 @@ def buy():
 @login_required
 def history():
     """Show history of transactions"""
-    return apology("TODO")
+    transactions = db.execute(
+        """
+        SELECT * FROM purchases
+        WHERE user_id = :user_id;
+        """,
+        user_id=session["user_id"]
+    )
+    return render_template(
+        "history.html",
+        transactions=transactions,
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -269,8 +281,6 @@ def register():
             )
         )
 
-        print(execute)
-
         if execute is not None:
             # Remember which user has logged in
             session["user_id"] = execute
@@ -330,16 +340,17 @@ def sell():
         # Add a purchase
         purchase = db.execute(
                 """
-                    INSERT INTO purchases (user_id, symbol, name, shares, price, total)
+                    INSERT INTO purchases (user_id, symbol, name, shares, price, total, date)
                     VALUES
-                    (:user_id, :symbol, :name, :shares, :price, :total);
+                    (:user_id, :symbol, :name, :shares, :price, :total, :date);
                 """,
                 user_id=session["user_id"],
                 symbol=quoted_data["symbol"],
                 name=quoted_data["name"],
                 shares=-(int(request.form.get("shares"))),
                 price=quoted_data["price"],
-                total=(quoted_data["price"] * int(request.form.get("shares")))
+                total=(quoted_data["price"] * int(request.form.get("shares"))),
+                date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             )
         
         if stock[0]["shares"] == int(request.form.get("shares")):
